@@ -1,7 +1,3 @@
-
-aaaaa = inverse_kinematics([1 1 1 1 2 2 1 1  1 1]);
-aaaaa
-
 function thetad = inverse_kinematics(u)
     % performs inverse kinematics computations with various methods
 
