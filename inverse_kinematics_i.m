@@ -12,6 +12,8 @@ function thetad = inverse_kinematics(u)
     x_array_sum = [];
     y_array_sum = [];
     alpha = 1;  
+    beta = 1;
+    theta_o = 0.5;
     index = 1;
     while index <= n
         theta_sum = theta_sum + theta(index);
@@ -30,10 +32,10 @@ function thetad = inverse_kinematics(u)
         index = index + 1;     
     end     
     J = (1/n) * [x_array_sum; y_array_sum];
-    
-    thetad = alpha * transpose(J) * [xd(1); xd(2)];
+    J_t = J'; 
+    J_sharp = alpha * J_t * inv(J * J_t);
+    thetad = beta * J_sharp * [xd(1); xd(2)] + (eye(n) - J_sharp * J) * (ones(n, 1) * theta_o - theta);
 end
-
 
 
 
