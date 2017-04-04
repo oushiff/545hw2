@@ -35,7 +35,7 @@ static int         firsttime = TRUE;
 static double      movement_time = 1.0;
 static double      tau;
 static double      t = 0;
-static SL_Cstate  *cBase;
+//static int  startDraw8 = FALSE;
 
 /* global functions */
 extern "C" void
@@ -210,18 +210,24 @@ run_draw_task(void)
     return TRUE; 
   }
 
-  
+  // if (t >= 10) {
+  //   freeze();
+  //   return TRUE; 
+  // }
+
+
   // use the math function to draw the figure-8
   // x = sin(t), y = sin(t)*cos(t)
-  // because x and y are too large, so divided by 20
-  cnext[RIGHT_HAND].x[_X_] = ctarget[RIGHT_HAND].x[_X_] + sin(t) / 20; 
-  cnext[RIGHT_HAND].x[_Z_] = ctarget[RIGHT_HAND].x[_Z_] + sin(t)*cos(t) / 20; 
+  // because x and y are too large, so divided by 30
+  cnext[RIGHT_HAND].x[_X_] = ctarget[RIGHT_HAND].x[_X_] + sin(t) / 30; 
+  cnext[RIGHT_HAND].x[_Z_] = ctarget[RIGHT_HAND].x[_Z_] + sin(t)*cos(t) / 30; 
   // we want to move faster, so use 1.5 times time_step
   t += 1.5*time_step;
+
   // we want to draw for a longer time, so use 0.05 times time_step
-  tau -= time_step * 0.05;
+  tau -= time_step * 0.1;
 
-
+  
   /* shuffle the target for the inverse kinematics */
   for (i=1; i<=n_endeffs; ++i) {
     for (j=1; j<=N_CART; ++j) {
@@ -374,4 +380,27 @@ calculate_min_jerk_next_step (SL_Cstate *curr_state,
   
   return TRUE;
 }
+
+
+
+// static int 
+// inverseKinematics(target,endeff,joint_opt_state,
+//        cart,cstatus,time_step) {
+
+//   for (j=1; j<=n_endeffs; ++j) {
+//     for (i=1; i<=N_CART; ++i) {
+
+//       if (cstatus[(j-1)*6+i]) {
+
+
+
+
+//       }
+//     }
+//   }
+
+// }
+
+
+
 
