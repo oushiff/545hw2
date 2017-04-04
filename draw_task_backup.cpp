@@ -34,8 +34,6 @@ static SL_DJstate *target;
 static int         firsttime = TRUE;
 static double      movement_time = 1.0;
 static double      tau;
-static double      t = 0;
-static SL_Cstate  *cBase;
 
 /* global functions */
 extern "C" void
@@ -47,10 +45,10 @@ static int  run_draw_task(void);
 static int  change_draw_task(void);
 static void init_vars(void);
 static int  calculate_min_jerk_next_step (SL_Cstate *curr_state,
-            SL_Cstate *des_state,
-            double tau,
-            double delta_t,
-            SL_Cstate *next_states);
+					  SL_Cstate *des_state,
+					  double tau,
+					  double delta_t,
+					  SL_Cstate *next_states);
  
 /*!*****************************************************************************
  *******************************************************************************
@@ -84,7 +82,7 @@ add_draw_task( void )
 
 
     addTask("Draw Task", init_draw_task, 
-      run_draw_task, change_draw_task);
+	    run_draw_task, change_draw_task);
   }
 
 }    
@@ -146,9 +144,9 @@ init_draw_task(void)
   cstatus[(RIGHT_HAND-1)*6+_Z_] = TRUE;
 
   /* choose as target 15 cm distance in x direction */
-  ctarget[RIGHT_HAND].x[_X_] = cart_des_state[RIGHT_HAND].x[_X_] ;
-  ctarget[RIGHT_HAND].x[_Y_] = cart_des_state[RIGHT_HAND].x[_Y_] ;
-  ctarget[RIGHT_HAND].x[_Z_] = cart_des_state[RIGHT_HAND].x[_Z_] ;
+  ctarget[RIGHT_HAND].x[_X_] = cart_des_state[RIGHT_HAND].x[_X_] + 0.15;
+  ctarget[RIGHT_HAND].x[_Y_] = cart_des_state[RIGHT_HAND].x[_Y_];
+  ctarget[RIGHT_HAND].x[_Z_] = cart_des_state[RIGHT_HAND].x[_Z_];
 
 
   /* the cnext state is the desired state as seen form this program */
@@ -210,18 +208,10 @@ run_draw_task(void)
     return TRUE; 
   }
 
-  
-  // use the math function to draw the figure-8
-  // x = sin(t), y = sin(t)*cos(t)
-  // because x and y are too large, so divided by 20
-  cnext[RIGHT_HAND].x[_X_] = ctarget[RIGHT_HAND].x[_X_] + sin(t) / 20; 
-  cnext[RIGHT_HAND].x[_Z_] = ctarget[RIGHT_HAND].x[_Z_] + sin(t)*cos(t) / 20; 
-  // we want to move faster, so use 1.5 times time_step
-  t += 1.5*time_step;
-  // we want to draw for a longer time, so use 0.05 times time_step
-  tau -= time_step * 0.05;
-
-
+  /* progress by min jerk in cartesian space */
+  calculate_min_jerk_next_step(cnext,ctarget,tau,time_step,cnext);
+  tau -= time_step;
+ 
   /* shuffle the target for the inverse kinematics */
   for (i=1; i<=n_endeffs; ++i) {
     for (j=1; j<=N_CART; ++j) {
@@ -235,7 +225,7 @@ run_draw_task(void)
     target[i].th = joint_des_state[i].th;
   }
   if (!inverseKinematics(target,endeff,joint_opt_state,
-       cart,cstatus,time_step)) {
+			 cart,cstatus,time_step)) {
     freeze();
     return FALSE;
   }
@@ -294,11 +284,11 @@ change_draw_task(void)
 \remarks 
 
         given a current cart state and a target cart
-  state as well as movement duration, the next increment
-  for the cart states is calculated. Note that this 
-  is done in only in cartesian dimensions with active status.
-  NOTE that this function requires velocity and accelerations
-  as input as well!!!
+	state as well as movement duration, the next increment
+	for the cart states is calculated. Note that this 
+	is done in only in cartesian dimensions with active status.
+	NOTE that this function requires velocity and accelerations
+	as input as well!!!
 
  *******************************************************************************
  Function Parameters: [in]=input,[out]=output
@@ -306,17 +296,17 @@ change_draw_task(void)
  \param[in]     curr_states: the current state
  \param[in]     des_states : the desired state
  \param[in]     tau        : the desired movement duration until the goal is
-                   reached.
+	                 reached.
  \param[in]     dt         : at which delta time is the next_states from now
  \param[out]    next_states: the next state after dt
 
  ******************************************************************************/
 static int 
 calculate_min_jerk_next_step (SL_Cstate *curr_state,
-            SL_Cstate *des_state,
-            double tau,
-            double delta_t,
-            SL_Cstate *next_state)
+			      SL_Cstate *des_state,
+			      double tau,
+			      double delta_t,
+			      SL_Cstate *next_state)
 
 {
   double t1,t2,t3,t4,t5;
@@ -343,31 +333,31 @@ calculate_min_jerk_next_step (SL_Cstate *curr_state,
     for (i=1; i<=N_CART; ++i) {
 
       if (cstatus[(j-1)*6+i]) {
-  
-  /* calculate the constants */
-  
-  const double dist   = des_state[j].x[i] - curr_state[j].x[i];
-  const double p1     = des_state[j].x[i];
-  const double p0     = curr_state[j].x[i];
-  const double a1t2   = des_state[j].xdd[i];
-  const double a0t2   = curr_state[j].xdd[i];
-  const double v1t1   = des_state[j].xd[i];
-  const double v0t1   = curr_state[j].xd[i];
-  
-  const double c1 = 6.*dist/tau5 + (a1t2 - a0t2)/(2.*tau3) - 
-    3.*(v0t1 + v1t1)/tau4;
-  const double c2 = -15.*dist/tau4 + (3.*a0t2 - 2.*a1t2)/(2.*tau2) +
-    (8.*v0t1 + 7.*v1t1)/tau3; 
-  const double c3 = 10.*dist/tau3+ (a1t2 - 3.*a0t2)/(2.*tau) -
-    (6.*v0t1 + 4.*v1t1)/tau2; 
-  const double c4 = curr_state[j].xdd[i]/2.;
-  const double c5 = curr_state[j].xd[i];
-  const double c6 = curr_state[j].x[i];
-  
-  next_state[j].x[i]   = c1*t5 + c2*t4 + c3*t3 + c4*t2 + c5*t1 + c6;
-  next_state[j].xd[i]  = 5.*c1*t4 + 4*c2*t3 + 3*c3*t2 + 2*c4*t1 + c5;
-  next_state[j].xdd[i] = 20.*c1*t3 + 12.*c2*t2 + 6.*c3*t1 + 2.*c4;
-  
+	
+	/* calculate the constants */
+	
+	const double dist   = des_state[j].x[i] - curr_state[j].x[i];
+	const double p1     = des_state[j].x[i];
+	const double p0     = curr_state[j].x[i];
+	const double a1t2   = des_state[j].xdd[i];
+	const double a0t2   = curr_state[j].xdd[i];
+	const double v1t1   = des_state[j].xd[i];
+	const double v0t1   = curr_state[j].xd[i];
+	
+	const double c1 = 6.*dist/tau5 + (a1t2 - a0t2)/(2.*tau3) - 
+	  3.*(v0t1 + v1t1)/tau4;
+	const double c2 = -15.*dist/tau4 + (3.*a0t2 - 2.*a1t2)/(2.*tau2) +
+	  (8.*v0t1 + 7.*v1t1)/tau3; 
+	const double c3 = 10.*dist/tau3+ (a1t2 - 3.*a0t2)/(2.*tau) -
+	  (6.*v0t1 + 4.*v1t1)/tau2; 
+	const double c4 = curr_state[j].xdd[i]/2.;
+	const double c5 = curr_state[j].xd[i];
+	const double c6 = curr_state[j].x[i];
+	
+	next_state[j].x[i]   = c1*t5 + c2*t4 + c3*t3 + c4*t2 + c5*t1 + c6;
+	next_state[j].xd[i]  = 5.*c1*t4 + 4*c2*t3 + 3*c3*t2 + 2*c4*t1 + c5;
+	next_state[j].xdd[i] = 20.*c1*t3 + 12.*c2*t2 + 6.*c3*t1 + 2.*c4;
+	
       }
     }
   }
